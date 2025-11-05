@@ -1,0 +1,82 @@
+version: '3.8'
+
+# Jaringan kustom agar semua service dapat berkomunikasi
+networks:
+  stokloka_net:
+    driver: bridge
+
+# Penyimpanan agar data DB tidak hilang saat container mati
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+services:
+  # --- 1. Database Utama (PostgreSQL) ---
+  postgres-db:
+    image: postgres:16-alpine
+    container_name: stokloka_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: stokloka
+      POSTGRES_PASSWORD: 3f1d019d55113334df954c14a6f6aee4600569c58c3000eb15a836154474bd9f
+      POSTGRES_DB: auth_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - stokloka_net
+  
+  # --- 2. Caching (Redis) ---
+  redis-cache:
+    image: redis:7-alpine
+    container_name: stokloka_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - stokloka_net
+
+  # --- 3. Message Broker (RabbitMQ) ---
+  rabbitmq-broker:
+    image: rabbitmq:3.13-management-alpine
+    container_name: stokloka_rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - stokloka_net
+
+  # --- 4. Backend Service: Auth (Go Fiber) ---
+  auth-service:
+    build:
+      context: ./backend/auth
+      dockerfile: Dockerfile
+    container_name: stokloka_auth_service
+    restart: on-failure
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres-db
+      - redis-cache
+    networks:
+      - stokloka_net
+
+  # --- 5. Backend Service: Product (Go Fiber) ---
+  product-service:
+    build:
+      context: ./backend/product
+      dockerfile: Dockerfile
+    container_name: stokloka_product_service
+    restart: on-failure
+    ports:
+      - "8081:8081"
+    depends_on:
+      - postgres-db
+    networks:
+      - stokloka_net
