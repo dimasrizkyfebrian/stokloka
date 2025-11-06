@@ -21,11 +21,12 @@ services:
     environment:
       POSTGRES_USER: stokloka
       POSTGRES_PASSWORD: 3f1d019d55113334df954c14a6f6aee4600569c58c3000eb15a836154474bd9f
-      POSTGRES_DB: auth_db
+      POSTGRES_DB: stokloka_db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres:/docker-entrypoint-initdb.d
     networks:
       - stokloka_net
   
@@ -66,6 +67,33 @@ services:
       - redis-cache
     networks:
       - stokloka_net
+    volumes:
+      - ./backend/auth:/app
+    environment:
+      # Koneksi database
+      DB_HOST: postgres-db
+      DB_PORT: 5432
+      DB_USER: stokloka
+      DB_PASSWORD: 3f1d019d55113334df954c14a6f6aee4600569c58c3000eb15a836154474bd9f
+      DB_NAME: auth_db
+
+      # Koneksi cache
+      REDIS_HOST: redis-cache
+      REDIS_PORT: 6379
+
+      # Koneksi message broker
+      RABBITMQ_HOST: rabbitmq-broker
+      RABBITMQ_PORT: 5672
+
+      # Konfigurasi JWT
+      JWT_SECRET_KEY: kxqe1qZ27010tXnXOr7GKmM2Kk4whp+Em/eRwN0HkGU6/APHGtWqgZlNDtOtaDLIIpq01H2vsRZNJ0Jbit1wKw==
+
+      # Konfigurasi Port
+      PORT: 8080
+
+      # Default user admin
+      DEFAULT_ADMIN_EMAIL: admin@stokloka.com
+      DEFAULT_ADMIN_PASS: admin123
 
   # --- 5. Backend Service: Product (Go Fiber) ---
   product-service:
@@ -80,3 +108,30 @@ services:
       - postgres-db
     networks:
       - stokloka_net
+    volumes:
+      - ./backend/product:/app
+    environment:
+      # Koneksi database
+      DB_HOST: postgres-db
+      DB_PORT: 5432
+      DB_USER: stokloka
+      DB_PASSWORD: 3f1d019d55113334df954c14a6f6aee4600569c58c3000eb15a836154474bd9f
+      DB_NAME: product_db
+
+      # Koneksi cache
+      REDIS_HOST: redis-cache
+      REDIS_PORT: 6379
+
+      # Koneksi message broker
+      RABBITMQ_HOST: rabbitmq-broker
+      RABBITMQ_PORT: 5672
+
+      # Konfigurasi JWT
+      JWT_SECRET_KEY: kxqe1qZ27010tXnXOr7GKmM2Kk4whp+Em/eRwN0HkGU6/APHGtWqgZlNDtOtaDLIIpq01H2vsRZNJ0Jbit1wKw==
+
+      # Konfigurasi Port
+      PORT: 8081
+
+      # Default user admin
+      DEFAULT_ADMIN_EMAIL: admin@stokloka.com
+      DEFAULT_ADMIN_PASS: admin123

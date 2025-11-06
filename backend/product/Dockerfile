@@ -1,19 +1,13 @@
-FROM golang:1.25-alpine AS builder
+FROM golang:1.25-alpine
 
 WORKDIR /app
+
+RUN go install github.com/air-verse/air@latest
 
 COPY go.mod go.sum ./
 
-COPY . .
+RUN go mod download
 
-RUN CGO_ENABLED=0 go build -o /app/main ./cmd/
+EXPOSE 8080
 
-FROM alpine:latest
-
-WORKDIR /app
-
-COPY --from=builder /app/main .
-
-EXPOSE 8081
-
-CMD ["./main"]
+CMD ["air"]
