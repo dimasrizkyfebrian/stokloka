@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Definisikan interface
+// ProductHandler Interface
 type ProductHandler interface {
 	// Category
 	CreateCategory(c *fiber.Ctx) error
@@ -30,11 +30,13 @@ type ProductHandler interface {
 	DeleteProduct(c *fiber.Ctx) error
 }
 
+// productHandler Struct
 type productHandler struct {
 	productService service.ProductService
 	validate       *validator.Validate
 }
 
+// NewProductHandler "Constructor"
 func NewProductHandler(productService service.ProductService) ProductHandler {
 	return &productHandler{
 		productService: productService,
@@ -191,9 +193,7 @@ func (h *productHandler) GetAllProducts(c *fiber.Ctx) error {
 }
 
 func (h *productHandler) GetProductByID(c *fiber.Ctx) error {
-	// Ambil ID dari parameter URL
-	idParam := c.Params("id")
-	id, err := uuid.Parse(idParam) // Konversi string ke UUID
+	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": "error", "message": "Invalid UUID format"})
 	}
@@ -222,7 +222,7 @@ func (h *productHandler) UpdateProduct(c *fiber.Ctx) error {
 
 	product, err := h.productService.UpdateProduct(id, input)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"status": "error", "message": "Product not found"})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"status": "error", "message": err.Error()})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "data": product})

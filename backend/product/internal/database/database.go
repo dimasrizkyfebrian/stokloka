@@ -77,7 +77,5 @@ func SeedData(db *gorm.DB) {
 		}
 	}
 
-	// (Kita bisa tambahkan seeder Kategori di sini nanti)
-
 	log.Println("Seeder selesai.")
 }

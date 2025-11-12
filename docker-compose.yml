@@ -52,6 +52,12 @@ services:
       - "15672:15672"
     networks:
       - stokloka_net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   # --- 4. Backend Service: Auth (Go Fiber) ---
   auth-service:
@@ -63,8 +69,12 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - postgres-db
-      - redis-cache
+      postgres-db:
+        condition: service_started
+      redis-cache:
+        condition: service_started
+      rabbitmq-broker:
+        condition: service_healthy
     networks:
       - stokloka_net
     volumes:
@@ -105,7 +115,12 @@ services:
     ports:
       - "8081:8081"
     depends_on:
-      - postgres-db
+      postgres-db:
+        condition: service_started
+      redis-cache:
+        condition: service_started
+      rabbitmq-broker:
+        condition: service_healthy
     networks:
       - stokloka_net
     volumes:

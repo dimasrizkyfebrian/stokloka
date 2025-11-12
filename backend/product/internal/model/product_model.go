@@ -43,7 +43,6 @@ type Product struct {
 }
 
 // --- Hook GORM untuk auto-generate UUID ---
-// Helper untuk digunakan di semua model
 func (model *Category) BeforeCreate(tx *gorm.DB) (err error) {
 	if model.ID == uuid.Nil {
 		model.ID = uuid.New()

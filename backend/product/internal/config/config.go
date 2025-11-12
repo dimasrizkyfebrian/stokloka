@@ -25,7 +25,8 @@ type Config struct {
 	RabbitPort string
 
 	// App
-	Port string
+	Port      string
+	JWTSecret string
 }
 
 // LoadConfig membaca env vars dan mengembalikannya dalam struct Config
@@ -47,7 +48,8 @@ func LoadConfig() *Config {
 		RabbitHost: getEnv("RABBITMQ_HOST", "localhost"),
 		RabbitPort: getEnv("RABBITMQ_PORT", "5672"),
 
-		Port: getEnv("PORT", "8081"),
+		Port:      getEnv("PORT", "8081"),
+		JWTSecret: getEnv("JWT_SECRET_KEY", "default_secret"),
 	}
 }
 

@@ -2,15 +2,17 @@ package service
 
 import (
 	"errors"
+	"log"
 
 	"github.com/dimasrizkyfebrian/stokloka/product/internal/dto"
 	"github.com/dimasrizkyfebrian/stokloka/product/internal/model"
+	"github.com/dimasrizkyfebrian/stokloka/product/internal/queue"
 	"github.com/dimasrizkyfebrian/stokloka/product/internal/repository"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-// Definisikan interface
+// ProductService Interface
 type ProductService interface {
 	// Category
 	CreateCategory(input dto.CreateCategoryDTO) (*model.Category, error)
@@ -21,6 +23,7 @@ type ProductService interface {
 	// Unit
 	CreateUnit(input dto.CreateUnitDTO) (*model.Unit, error)
 	GetAllUnits() ([]model.Unit, error)
+	FindUnitByID(id uuid.UUID) (*model.Unit, error)
 	UpdateUnit(id uuid.UUID, input dto.UpdateUnitDTO) (*model.Unit, error)
 	DeleteUnit(id uuid.UUID) error
 
@@ -32,12 +35,18 @@ type ProductService interface {
 	DeleteProduct(id uuid.UUID) error
 }
 
+// productService Struct
 type productService struct {
-	repo repository.ProductRepository
+	repo      repository.ProductRepository
+	publisher queue.EventPublisher
 }
 
-func NewProductService(repo repository.ProductRepository) ProductService {
-	return &productService{repo: repo}
+// NewProductService "Constructor"
+func NewProductService(repo repository.ProductRepository, publisher queue.EventPublisher) ProductService {
+	return &productService{
+		repo:      repo,
+		publisher: publisher,
+	}
 }
 
 // --- Implementasi Category ---
@@ -47,6 +56,13 @@ func (s *productService) CreateCategory(input dto.CreateCategoryDTO) (*model.Cat
 		Deskripsi:    input.Deskripsi,
 	}
 	err := s.repo.CreateCategory(newCategory)
+	if err != nil {
+		return nil, err
+	}
+	// Panggil publisher
+	if err := s.publisher.Publish("category.created", newCategory); err != nil {
+		log.Printf("Gagal publish event category.created: %v", err)
+	}
 	return newCategory, err
 }
 
@@ -55,13 +71,10 @@ func (s *productService) GetAllCategories() ([]model.Category, error) {
 }
 
 func (s *productService) UpdateCategory(id uuid.UUID, input dto.UpdateCategoryDTO) (*model.Category, error) {
-	// Ambil data
 	category, err := s.repo.FindCategoryByID(id)
 	if err != nil {
-		return nil, err // Akan error jika not found
+		return nil, err
 	}
-
-	// Perbarui field jika ada di input
 	if input.NamaKategori != "" {
 		category.NamaKategori = input.NamaKategori
 	}
@@ -69,18 +82,32 @@ func (s *productService) UpdateCategory(id uuid.UUID, input dto.UpdateCategoryDT
 		category.Deskripsi = input.Deskripsi
 	}
 
-	// Simpan (Repo akan invalidate cache)
-	return s.repo.UpdateCategory(category)
+	updatedCategory, err := s.repo.UpdateCategory(category)
+	if err != nil {
+		return nil, err
+	}
+	// Panggil publisher
+	if err := s.publisher.Publish("category.updated", updatedCategory); err != nil {
+		log.Printf("Gagal publish event category.updated: %v", err)
+	}
+	return updatedCategory, nil
 }
 
 func (s *productService) DeleteCategory(id uuid.UUID) error {
-	// Cek apakah ada
-	_, err := s.repo.FindCategoryByID(id)
+	category, err := s.repo.FindCategoryByID(id)
 	if err != nil {
-		return err // Error not found
+		return err
 	}
-	// Hapus (Repo akan invalidate cache)
-	return s.repo.DeleteCategory(id)
+
+	err = s.repo.DeleteCategory(id)
+	if err != nil {
+		return err
+	}
+	// Panggil publisher
+	if err := s.publisher.Publish("category.deleted", category); err != nil {
+		log.Printf("Gagal publish event category.deleted: %v", err)
+	}
+	return nil
 }
 
 // --- Implementasi Unit ---
@@ -90,6 +117,13 @@ func (s *productService) CreateUnit(input dto.CreateUnitDTO) (*model.Unit, error
 		Singkatan: input.Singkatan,
 	}
 	err := s.repo.CreateUnit(newUnit)
+	if err != nil {
+		return nil, err
+	}
+	// Panggil publisher
+	if err := s.publisher.Publish("unit.deleted", newUnit); err != nil {
+		log.Printf("Gagal publish event unit.deleted: %v", err)
+	}
 	return newUnit, err
 }
 
@@ -97,8 +131,12 @@ func (s *productService) GetAllUnits() ([]model.Unit, error) {
 	return s.repo.FindAllUnits()
 }
 
+func (s *productService) FindUnitByID(id uuid.UUID) (*model.Unit, error) {
+	return s.repo.FindUnitByID(id)
+}
+
 func (s *productService) UpdateUnit(id uuid.UUID, input dto.UpdateUnitDTO) (*model.Unit, error) {
-	unit, err := s.repo.FindUnitByID(id) // Perlu FindUnitByID di repo
+	unit, err := s.repo.FindUnitByID(id)
 	if err != nil {
 		return nil, err
 	}
@@ -108,19 +146,45 @@ func (s *productService) UpdateUnit(id uuid.UUID, input dto.UpdateUnitDTO) (*mod
 	if input.Singkatan != "" {
 		unit.Singkatan = input.Singkatan
 	}
-	return s.repo.UpdateUnit(unit)
+
+	updatedUnit, err := s.repo.UpdateUnit(unit)
+	if err != nil {
+		return nil, err
+	}
+	// Panggil publisher
+	if err := s.publisher.Publish("unit.deleted", unit); err != nil {
+		log.Printf("Gagal publish event unit.deleted: %v", err)
+	}
+	return updatedUnit, nil
 }
 
 func (s *productService) DeleteUnit(id uuid.UUID) error {
-	_, err := s.repo.FindUnitByID(id)
+	unit, err := s.repo.FindUnitByID(id)
 	if err != nil {
 		return err
 	}
-	return s.repo.DeleteUnit(id)
+
+	err = s.repo.DeleteUnit(id)
+	if err != nil {
+		return err
+	}
+	// Panggil publisher
+	if err := s.publisher.Publish("unit.deleted", unit); err != nil {
+		log.Printf("Gagal publish event unit.deleted: %v", err)
+	}
+	return nil
 }
 
 // --- Implementasi Product ---
 func (s *productService) CreateProduct(input dto.CreateProductDTO) (*model.Product, error) {
+	// Cek dependensi
+	if _, err := s.repo.FindCategoryByID(input.CategoryID); err != nil {
+		return nil, errors.New("Category ID tidak valid")
+	}
+	if _, err := s.repo.FindUnitByID(input.UnitID); err != nil {
+		return nil, errors.New("Unit ID tidak valid")
+	}
+
 	newProduct := &model.Product{
 		SKU:        input.SKU,
 		NamaProduk: input.NamaProduk,
@@ -130,7 +194,20 @@ func (s *productService) CreateProduct(input dto.CreateProductDTO) (*model.Produ
 	}
 
 	err := s.repo.CreateProduct(newProduct)
-	return newProduct, err
+	if err != nil {
+		return nil, err
+	}
+
+	createdProduct, err := s.repo.FindProductByID(newProduct.ID) // Preload
+	// Panggil publisher
+	if err != nil {
+		log.Printf("Gagal preload produk untuk event: %v", err)
+		s.publisher.Publish("product.created", newProduct)
+	} else {
+		s.publisher.Publish("product.created", createdProduct)
+	}
+
+	return createdProduct, nil
 }
 
 func (s *productService) GetAllProducts() ([]model.Product, error) {
@@ -156,21 +233,51 @@ func (s *productService) UpdateProduct(id uuid.UUID, input dto.UpdateProductDTO)
 		product.Deskripsi = input.Deskripsi
 	}
 	if input.CategoryID != uuid.Nil {
+		if _, err := s.repo.FindCategoryByID(input.CategoryID); err != nil {
+			return nil, errors.New("Category ID tidak valid")
+		}
 		product.CategoryID = input.CategoryID
 	}
 	if input.UnitID != uuid.Nil {
+		if _, err := s.repo.FindUnitByID(input.UnitID); err != nil {
+			return nil, errors.New("Unit ID tidak valid")
+		}
 		product.UnitID = input.UnitID
 	}
-	return s.repo.UpdateProduct(product)
+
+	updatedProduct, err := s.repo.UpdateProduct(product)
+	if err != nil {
+		return nil, err
+	}
+
+	finalProduct, err := s.repo.FindProductByID(updatedProduct.ID) // Preload
+	// Panggil publisher
+	if err != nil {
+		log.Printf("Gagal preload produk untuk event: %v", err)
+		s.publisher.Publish("product.updated", updatedProduct)
+	} else {
+		s.publisher.Publish("product.updated", finalProduct)
+	}
+
+	return finalProduct, nil
 }
 
 func (s *productService) DeleteProduct(id uuid.UUID) error {
-	_, err := s.repo.FindProductByID(id)
+	product, err := s.repo.FindProductByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errors.New("Produk tidak ditemukan")
 		}
 		return err
 	}
-	return s.repo.DeleteProduct(id)
+
+	err = s.repo.DeleteProduct(id)
+	if err != nil {
+		return err
+	}
+	// Panggil publisher
+	if err := s.publisher.Publish("product.deleted", product); err != nil {
+		log.Printf("Gagal publish event product.deleted: %v", err)
+	}
+	return nil
 }
