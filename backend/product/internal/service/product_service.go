@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// ProductService Interface
+// ProductService Interface (Lengkap)
 type ProductService interface {
 	// Category
 	CreateCategory(input dto.CreateCategoryDTO) (*model.Category, error)
@@ -38,7 +38,7 @@ type ProductService interface {
 // productService Struct
 type productService struct {
 	repo      repository.ProductRepository
-	publisher queue.EventPublisher
+	publisher queue.EventPublisher // Menggunakan Interface
 }
 
 // NewProductService "Constructor"
@@ -59,10 +59,19 @@ func (s *productService) CreateCategory(input dto.CreateCategoryDTO) (*model.Cat
 	if err != nil {
 		return nil, err
 	}
-	// Panggil publisher
-	if err := s.publisher.Publish("category.created", newCategory); err != nil {
-		log.Printf("Gagal publish event category.created: %v", err)
-	}
+
+	// --- GOROUTINE PUBLISH ---
+	go func(data model.Category) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic terdeteksi di goroutine publish category.created: %v", r)
+			}
+		}()
+		if err := s.publisher.Publish("category.created", data); err != nil {
+			log.Printf("Gagal publish event category.created (background): %v", err)
+		}
+	}(*newCategory) // Kirim copy-an data
+
 	return newCategory, err
 }
 
@@ -86,10 +95,19 @@ func (s *productService) UpdateCategory(id uuid.UUID, input dto.UpdateCategoryDT
 	if err != nil {
 		return nil, err
 	}
-	// Panggil publisher
-	if err := s.publisher.Publish("category.updated", updatedCategory); err != nil {
-		log.Printf("Gagal publish event category.updated: %v", err)
-	}
+
+	// --- GOROUTINE PUBLISH ---
+	go func(data model.Category) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic terdeteksi di goroutine publish category.updated: %v", r)
+			}
+		}()
+		if err := s.publisher.Publish("category.updated", data); err != nil {
+			log.Printf("Gagal publish event category.updated (background): %v", err)
+		}
+	}(*updatedCategory)
+
 	return updatedCategory, nil
 }
 
@@ -103,10 +121,19 @@ func (s *productService) DeleteCategory(id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	// Panggil publisher
-	if err := s.publisher.Publish("category.deleted", category); err != nil {
-		log.Printf("Gagal publish event category.deleted: %v", err)
-	}
+
+	// --- GOROUTINE PUBLISH ---
+	go func(data model.Category) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic terdeteksi di goroutine publish category.deleted: %v", r)
+			}
+		}()
+		if err := s.publisher.Publish("category.deleted", data); err != nil {
+			log.Printf("Gagal publish event category.deleted (background): %v", err)
+		}
+	}(*category)
+
 	return nil
 }
 
@@ -120,10 +147,19 @@ func (s *productService) CreateUnit(input dto.CreateUnitDTO) (*model.Unit, error
 	if err != nil {
 		return nil, err
 	}
-	// Panggil publisher
-	if err := s.publisher.Publish("unit.deleted", newUnit); err != nil {
-		log.Printf("Gagal publish event unit.deleted: %v", err)
-	}
+
+	// --- GOROUTINE PUBLISH ---
+	go func(data model.Unit) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic terdeteksi di goroutine publish unit.created: %v", r)
+			}
+		}()
+		if err := s.publisher.Publish("unit.created", data); err != nil {
+			log.Printf("Gagal publish event unit.created (background): %v", err)
+		}
+	}(*newUnit)
+
 	return newUnit, err
 }
 
@@ -151,10 +187,19 @@ func (s *productService) UpdateUnit(id uuid.UUID, input dto.UpdateUnitDTO) (*mod
 	if err != nil {
 		return nil, err
 	}
-	// Panggil publisher
-	if err := s.publisher.Publish("unit.deleted", unit); err != nil {
-		log.Printf("Gagal publish event unit.deleted: %v", err)
-	}
+
+	// --- GOROUTINE PUBLISH ---
+	go func(data model.Unit) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic terdeteksi di goroutine publish unit.updated: %v", r)
+			}
+		}()
+		if err := s.publisher.Publish("unit.updated", data); err != nil {
+			log.Printf("Gagal publish event unit.updated (background): %v", err)
+		}
+	}(*updatedUnit)
+
 	return updatedUnit, nil
 }
 
@@ -168,16 +213,24 @@ func (s *productService) DeleteUnit(id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	// Panggil publisher
-	if err := s.publisher.Publish("unit.deleted", unit); err != nil {
-		log.Printf("Gagal publish event unit.deleted: %v", err)
-	}
+
+	// --- GOROUTINE PUBLISH ---
+	go func(data model.Unit) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic terdeteksi di goroutine publish unit.deleted: %v", r)
+			}
+		}()
+		if err := s.publisher.Publish("unit.deleted", data); err != nil {
+			log.Printf("Gagal publish event unit.deleted (background): %v", err)
+		}
+	}(*unit)
+
 	return nil
 }
 
 // --- Implementasi Product ---
 func (s *productService) CreateProduct(input dto.CreateProductDTO) (*model.Product, error) {
-	// Cek dependensi
 	if _, err := s.repo.FindCategoryByID(input.CategoryID); err != nil {
 		return nil, errors.New("Category ID tidak valid")
 	}
@@ -198,14 +251,34 @@ func (s *productService) CreateProduct(input dto.CreateProductDTO) (*model.Produ
 		return nil, err
 	}
 
-	createdProduct, err := s.repo.FindProductByID(newProduct.ID) // Preload
-	// Panggil publisher
+	createdProduct, err := s.repo.FindProductByID(newProduct.ID)
 	if err != nil {
 		log.Printf("Gagal preload produk untuk event: %v", err)
-		s.publisher.Publish("product.created", newProduct)
-	} else {
-		s.publisher.Publish("product.created", createdProduct)
+		// Tetap publish data seadanya
+		go func(data model.Product) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("Panic terdeteksi di goroutine publish product.created: %v", r)
+				}
+			}()
+			if err := s.publisher.Publish("product.created", data); err != nil {
+				log.Printf("Gagal publish event product.created (background): %v", err)
+			}
+		}(*newProduct)
+		return newProduct, nil // Kembalikan data yg seadanya
 	}
+
+	// --- GOROUTINE PUBLISH (dengan data preload) ---
+	go func(data model.Product) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic terdeteksi di goroutine publish product.created: %v", r)
+			}
+		}()
+		if err := s.publisher.Publish("product.created", data); err != nil {
+			log.Printf("Gagal publish event product.created (background): %v", err)
+		}
+	}(*createdProduct)
 
 	return createdProduct, nil
 }
@@ -250,14 +323,34 @@ func (s *productService) UpdateProduct(id uuid.UUID, input dto.UpdateProductDTO)
 		return nil, err
 	}
 
-	finalProduct, err := s.repo.FindProductByID(updatedProduct.ID) // Preload
-	// Panggil publisher
+	finalProduct, err := s.repo.FindProductByID(updatedProduct.ID)
 	if err != nil {
 		log.Printf("Gagal preload produk untuk event: %v", err)
-		s.publisher.Publish("product.updated", updatedProduct)
-	} else {
-		s.publisher.Publish("product.updated", finalProduct)
+		// --- GOROUTINE PUBLISH (data seadanya) ---
+		go func(data model.Product) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("Panic terdeteksi di goroutine publish product.updated: %v", r)
+				}
+			}()
+			if err := s.publisher.Publish("product.updated", data); err != nil {
+				log.Printf("Gagal publish event product.updated (background): %v", err)
+			}
+		}(*updatedProduct)
+		return updatedProduct, nil
 	}
+
+	// --- GOROUTINE PUBLISH (dengan data preload) ---
+	go func(data model.Product) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic terdeteksi di goroutine publish product.updated: %v", r)
+			}
+		}()
+		if err := s.publisher.Publish("product.updated", data); err != nil {
+			log.Printf("Gagal publish event product.updated (background): %v", err)
+		}
+	}(*finalProduct)
 
 	return finalProduct, nil
 }
@@ -275,9 +368,18 @@ func (s *productService) DeleteProduct(id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	// Panggil publisher
-	if err := s.publisher.Publish("product.deleted", product); err != nil {
-		log.Printf("Gagal publish event product.deleted: %v", err)
-	}
+
+	// --- GOROUTINE PUBLISH ---
+	go func(data model.Product) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic terdeteksi di goroutine publish product.deleted: %v", r)
+			}
+		}()
+		if err := s.publisher.Publish("product.deleted", data); err != nil {
+			log.Printf("Gagal publish event product.deleted (background): %v", err)
+		}
+	}(*product)
+
 	return nil
 }
