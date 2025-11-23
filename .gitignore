@@ -1,5 +1,6 @@
 PROJECT_BLUEPRINT.md
 
-.air.toml
+go.work
+go.work.sum
 
 **/tmp
