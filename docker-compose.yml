@@ -150,3 +150,45 @@ services:
       # Default user admin
       DEFAULT_ADMIN_EMAIL: admin@stokloka.com
       DEFAULT_ADMIN_PASS: admin123
+  
+  # --- 6. Backend Service: Supplier (Go Fiber) ---
+  supplier-service:
+    build:
+      context: ./backend/supplier
+      dockerfile: Dockerfile
+    container_name: stokloka_supplier_service
+    restart: on-failure
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres-db:
+        condition: service_started
+      redis-cache:
+        condition: service_started
+      rabbitmq-broker:
+        condition: service_healthy
+    networks:
+      - stokloka_net
+    volumes:
+      - ./backend/supplier:/app
+    environment:
+      # Koneksi database
+      DB_HOST: postgres-db
+      DB_PORT: 5432
+      DB_USER: stokloka
+      DB_PASSWORD: 3f1d019d55113334df954c14a6f6aee4600569c58c3000eb15a836154474bd9f
+      DB_NAME: supplier_db
+
+      # Koneksi cache
+      REDIS_HOST: redis-cache
+      REDIS_PORT: 6379
+
+      # Koneksi message broker
+      RABBITMQ_HOST: rabbitmq-broker
+      RABBITMQ_PORT: 5672
+
+      # Konfigurasi JWT
+      JWT_SECRET_KEY: kxqe1qZ27010tXnXOr7GKmM2Kk4whp+Em/eRwN0HkGU6/APHGtWqgZlNDtOtaDLIIpq01H2vsRZNJ0Jbit1wKw==
+      
+      # Konfigurasi Port
+      PORT: 8082
