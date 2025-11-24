@@ -42,7 +42,7 @@ func (p *rabbitmqPublisher) Publish(routingKey string, data interface{}) error {
 
 	err = p.ch.PublishWithContext(ctx,
 		ExchangeName, // exchange (dari rabbitmq.go)
-		routingKey,   // routing key (e.g., "product.created")
+		routingKey,   // routing key (e.g., "supplier.created")
 		false,        // mandatory
 		false,        // immediate
 		amqp.Publishing{
